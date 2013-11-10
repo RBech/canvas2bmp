@@ -3,16 +3,19 @@
 	"use strict";
 
 	function encode(data) {
-		if( typeof data === "string" ) {
-			return btoa(data);
-		}
-
 		var i, l, strData = "";
 		for( i = 0, l = data.length; i < l; i += 1) {
 			strData += String.fromCharCode(data[i]);
 		}
 
 		return btoa(strData);
+	}
+
+	function write32BitInt(dest, num) {
+		dest.push(num & 0xff);
+		dest.push((num & 0xff00) >> 8);
+		dest.push((num & 0xff0000) >> 16);
+		dest.push(num >> 24);
 	}
 
 	function createBMP(canvas) {
@@ -27,8 +30,7 @@
 		bmpHeight = imgHeight,
 		dataSize = imgWidth * imgHeight * 4,
 		imgData = imageData.data,
-		pixelRow = "",
-		pixelData = "",
+		pixelData = [],
 		offsetY,
 		offsetX,
 		encodedBMP;
@@ -37,11 +39,8 @@
 		BMPHeader.push(0x42);
 		BMPHeader.push(0x4D);
 
-		//FIle size
-		BMPHeader.push(fileSize % 256); fileSize = ~~(fileSize / 256);
-		BMPHeader.push(fileSize % 256); fileSize = ~~(fileSize / 256);
-		BMPHeader.push(fileSize % 256); fileSize = ~~(fileSize / 256);
-		BMPHeader.push(fileSize % 256);
+		//File size
+		write32BitInt(BMPHeader, fileSize);
 
 		//4 Application specific unused bytes
 		BMPHeader.push(0);
@@ -62,16 +61,10 @@
 		DIBHeader.push(0);
 
 		//Width of the bitmap in pixels
-		DIBHeader.push(bmpWidth % 256); bmpWidth = ~~(bmpWidth / 256);
-		DIBHeader.push(bmpWidth % 256); bmpWidth = ~~(bmpWidth / 256);
-		DIBHeader.push(bmpWidth % 256); bmpWidth = ~~(bmpWidth / 256);
-		DIBHeader.push(bmpWidth % 256);
+		write32BitInt(DIBHeader, bmpWidth);
 
 		//Height of the bitmap in pixels
-		DIBHeader.push(bmpHeight % 256); bmpHeight = ~~(bmpHeight / 256);
-		DIBHeader.push(bmpHeight % 256); bmpHeight = ~~(bmpHeight / 256);
-		DIBHeader.push(bmpHeight % 256); bmpHeight = ~~(bmpHeight / 256);
-		DIBHeader.push(bmpHeight % 256);
+		write32BitInt(DIBHeader, bmpHeight);
 
 		//Number of color planes (1)
 		DIBHeader.push(1);
@@ -88,10 +81,7 @@
 		DIBHeader.push(0);
 
 		//Size of the raw data in the pixel array
-		DIBHeader.push(dataSize % 256); dataSize = ~~(dataSize / 256);
-		DIBHeader.push(dataSize % 256); dataSize = ~~(dataSize / 256);
-		DIBHeader.push(dataSize % 256); dataSize = ~~(dataSize / 256);
-		DIBHeader.push(dataSize % 256); 
+		write32BitInt(DIBHeader, dataSize);
 
 		//Horizontal physical resolution of the image (72 dpi)
 		DIBHeader.push(0x13);
@@ -163,20 +153,19 @@
 		//Create pixel data
 		do {
 			offsetY = imgWidth * (imgHeight - 1) * 4;
-			pixelRow = "";
+
 			for( var x = 0; x < imgWidth; x += 1 ) {
 				offsetX = 4 * x;
 
-				pixelRow += String.fromCharCode(imgData[offsetX+offsetY+3]);
-				pixelRow += String.fromCharCode(imgData[offsetX+offsetY+2]);
-				pixelRow += String.fromCharCode(imgData[offsetX+offsetY+1]);
-				pixelRow += String.fromCharCode(imgData[offsetX+offsetY]);
+				pixelData.push(imgData[offsetX+offsetY+3]);
+				pixelData.push(imgData[offsetX+offsetY+2]);
+				pixelData.push(imgData[offsetX+offsetY+1]);
+				pixelData.push(imgData[offsetX+offsetY]);
 			}
 
-			pixelData += pixelRow;
 		} while( imgHeight-- );
 
-		encodedBMP = encode(BMPHeader.concat(DIBHeader)) + encode(pixelData);
+		encodedBMP = encode(BMPHeader.concat(DIBHeader).concat(pixelData));
 		return encodedBMP;
 	}
 
